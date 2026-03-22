@@ -2,3 +2,96 @@ taskkill /IM node.exe /F
 
 
 npm install xlsx
+
+
+
+Stack Técnica — Divino Fogão Central de Sistemas
+Linguagens
+
+JavaScript (Node.js) — backend 100%
+HTML + CSS + JS vanilla — frontend 100% (sem framework frontend)
+Sem TypeScript, sem React, sem Vue
+
+
+Backend
+TecnologiaVersão mínimaPara que serveNode.js18+Runtime do servidorExpress4.xFramework HTTP / roteamentoexpress-session1.xSessões de loginpassport0.6+Autenticação OAuthpassport-google-oauth202.xLogin via Googlegoogleapis126+Leitura e escrita no Google Sheetscors2.xPermite requisições cross-origindotenv16.xLê variáveis do arquivo .env
+
+Frontend
+Sem build, sem bundler, sem compilação. Tudo é HTML puro servido pelo Express.
+RecursoOrigemNunito (fonte principal)Google Fonts CDNJetBrains Mono (fonte mono)Google Fonts CDNCSS custom propertiesNativo do browserFetch APINativo do browserES Modules / async-awaitNativo do browser (Node 18+)
+
+Google APIs usadas
+APIPara que serveGoogle Sheets API v4Leitura e escrita em todas as planilhasGoogle OAuth 2.0Login com conta @divinofogao.com.br
+Dois tipos de autenticação Google
+
+OAuth 2.0 (para login dos usuários) → credenciais no .env (GOOGLE_CLIENT_ID, GOOGLE_CLIENT_SECRET)
+Service Account (para ler/escrever planilhas) → arquivo minha-chave.json
+
+
+Arquitetura
+┌─────────────────────────────────────────┐
+│              server.js                  │
+│  Express + Passport + Session           │
+│  Auto-detecta módulos em /modulos/      │
+├─────────────────────────────────────────┤
+│  core/                                  │
+│    auth.js          → OAuth Google      │
+│    permissoes.js    → Controle acesso   │
+│    masterService.js → API do painel     │
+├─────────────────────────────────────────┤
+│  modulos/                               │
+│    ti/                                  │
+│      routes.js      → Express Router   │
+│      services/      → Lógica + Sheets  │
+│      public/        → HTMLs do módulo  │
+│      cache/         → JSON local       │
+│      modulo.json    → Metadados        │
+│    juridico/        → mesma estrutura  │
+│    treinamento/     → mesma estrutura  │
+│    suprimentos/     → mesma estrutura  │
+│    marketing/       → mesma estrutura  │
+├─────────────────────────────────────────┤
+│  public/                                │
+│    index.html       → Dashboard raiz   │
+│    login.html       → Tela de login    │
+│    master.html      → Painel master    │
+│    logo.png                            │
+└─────────────────────────────────────────┘
+
+Padrão de cache
+Cada módulo tem sua própria pasta cache/ com arquivos JSON locais. Isso evita chamadas desnecessárias à API do Google Sheets. O fluxo é:
+Browser → Express → lerCache() → retorna JSON local
+                              ↘ se vazio: lê Sheets → salva JSON → retorna
+O botão Sincronizar força a re-leitura da planilha e atualiza o cache.
+
+Autenticação e permissões
+Login Google OAuth
+      ↓
+passport verifica domínio @divinofogao.com.br
+      ↓
+middlewarePerfil busca usuário na planilha Gestao_Login
+      ↓
+exigirModulo('ti') verifica se tem permissão
+      ↓
+exigirMaster verifica se é o email master
+
+Portas e processos
+RecursoValor padrãoPorta HTTP3000 (configurável via PORT no .env)Processos1 (single process, sem cluster)Timeout de requests120 segundos
+
+Produção recomendado
+FerramentaPara que servePM2Mantém o processo rodando, reinicia após crashNginx (opcional)Proxy reverso, HTTPS, domínio próprioLet's Encrypt (opcional)Certificado SSL gratuito
+Nginx mínimo (se usar domínio próprio)
+nginxserver {
+    listen 80;
+    server_name sistemas.divinofogao.com.br;
+
+    location / {
+        proxy_pass http://localhost:3000;
+        proxy_http_version 1.1;
+        proxy_set_header Upgrade $http_upgrade;
+        proxy_set_header Connection 'upgrade';
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_cache_bypass $http_upgrade;
+    }
+}
